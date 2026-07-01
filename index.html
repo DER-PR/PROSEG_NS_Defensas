@@ -194,6 +194,8 @@
         <h2>Exportar verificação</h2>
         <p class="dica">Gera a tabela com todas as defensas verificadas (projeto × verificado). Cole na sua planilha de conferência.</p>
         <button class="btn btn-primario" onclick="copiarVerificacao()">📋 Copiar verificação</button>
+        <button class="btn btn-linha" style="margin-top:8px" onclick="baixarCSVDef()">⬇ Baixar CSV completo (com GPS e data)</button>
+        <button class="btn btn-sec" style="margin-top:8px" onclick="compartilharDef()">↗ Enviar arquivo por WhatsApp / e-mail</button>
       </div>
     </section>
   </main>
@@ -392,6 +394,7 @@ function salvarDef(){
   it.reflSup=(document.getElementById("dReflSup").value||"").trim();
   it.obs=(document.getElementById("dObs").value||"").trim();
   it.status="verificada";
+  it.dataHora=new Date().toLocaleString("pt-BR");
   persist(); defSujo=false; toast("Verificação salva ✓"); irPara("lista");
 }
 function limparDef(){
@@ -500,6 +503,46 @@ function renderResumoExp(){
     '<span>Verificadas: <b>'+c.verif+' / '+c.todos+'</b></span><span>Pendentes: <b>'+c.pend+'</b></span>'+
     '<span>Total lâminas: <b>'+somaLam+'</b></span><span>Comprimento medido: <b>'+somaComp+'</b> m</span>'+
     '</div></div>';
+}
+
+/* ====== CSV / Compartilhamento ====== */
+var COLS_CSV=COLS.concat(["Data/Hora","Foto1 GPS","Foto2 GPS"]);
+function linhaCSVDef(it){
+  var nl=parseFloat((it.nLaminas||"").replace(",","."));
+  var comp=isNaN(nl)?"":(nl*4);
+  var fotos=[it.foto1,it.foto2].filter(Boolean).join(" / ");
+  return [it.tramo,it.kmIni,it.kmFim,it.lado,fmtEixo(it.eixo),it.comprimento,it.nLaminas,comp,sn(it.instalada),sn(it.te),sn(it.ts),it.reflDef,it.reflSup,fotos,it.obs||"",it.dataHora||"",it.foto1Gps||"",it.foto2Gps||""];
+}
+function campoCSV(v){v=(v==null?"":""+v);if(/[";\n]/.test(v))v='"'+v.replace(/"/g,'""')+'"';return v;}
+function montaCSVDef(){
+  var c=";";
+  var h=COLS_CSV.join(c);
+  var sel=itens.filter(function(it){return it.status==="verificada";});
+  var corpo=sel.map(function(it){return linhaCSVDef(it).map(campoCSV).join(c);}).join("\r\n");
+  return "\uFEFF"+h+"\r\n"+corpo;
+}
+function nomeArqDef(){var d=new Date(),z=function(n){return(n<10?"0":"")+n;};return (rodAtual||"defensas").replace(/[^\w-]/g,"_")+"_defensas_"+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+".csv";}
+function baixarCSVDef(){
+  var sel=itens.filter(function(it){return it.status==="verificada";});
+  if(!sel.length){toast("Nenhuma defensa verificada ainda");return;}
+  var blob=new Blob([montaCSVDef()],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=nomeArqDef();document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  toast(sel.length+" registro(s) exportado(s)");
+}
+async function compartilharDef(){
+  var sel=itens.filter(function(it){return it.status==="verificada";});
+  if(!sel.length){toast("Nenhuma defensa verificada ainda");return;}
+  var blob=new Blob([montaCSVDef()],{type:"text/csv"});
+  var file=new File([blob],nomeArqDef(),{type:"text/csv"});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:"Defensas "+rodAtual,text:"Verificação de defensas PROSEG "+rodAtual});
+      return;
+    }
+  }catch(e){}
+  baixarCSVDef();
+  toast("Compartilhamento indisponível — arquivo baixado");
 }
 
 /* ====== Início ====== */
