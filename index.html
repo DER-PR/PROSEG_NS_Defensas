@@ -138,6 +138,7 @@
             <button type="button" class="sim" onclick="setTg('te','S')">Sim</button>
             <button type="button" class="nao" onclick="setTg('te','N')">Não</button>
           </div>
+          <div class="dica esconde" id="tgTEuso" style="background:#fdf3d3;color:#8a6d00;padding:11px 13px;border-radius:10px;font-weight:700;margin:0">🔧 Em condição de uso — manutenção, não é necessário validar</div>
         </div>
 
         <div class="grupo">
@@ -146,6 +147,7 @@
             <button type="button" class="sim" onclick="setTg('ts','S')">Sim</button>
             <button type="button" class="nao" onclick="setTg('ts','N')">Não</button>
           </div>
+          <div class="dica esconde" id="tgTSuso" style="background:#fdf3d3;color:#8a6d00;padding:11px 13px;border-radius:10px;font-weight:700;margin:0">🔧 Em condição de uso — manutenção, não é necessário validar</div>
         </div>
 
         <div class="grupo">
@@ -221,6 +223,7 @@ function fallback(txt){var ta=document.createElement("textarea");ta.value=txt;ta
 function fmtEixo(s){return (s||"").trim().replace(/\s+/g,"-").replace(/-+/g,"-");}
 function normEixo(s){return fmtEixo(s).toUpperCase().replace(/^PRC-/,"PR-");}
 function eixoDifere(it){var e=normEixo(it&&it.eixo);return e!=="" && e!==normEixo((rodAtual||"").replace(/\s*\(.*\)/,""));}
+function emUso(v){return (v||"").trim().toUpperCase()==="EM CONDIÇÃO DE USO";}
 
 /* ====== Navegação ====== */
 function esconderTudo(){["Sel","Lista","Def","Export"].forEach(function(s){document.getElementById("v"+s).classList.add("esconde");});}
@@ -282,7 +285,7 @@ async function mostraSeletor(){
       '<div class="selo '+(on?"on":"off")+'">'+(on?"OFFLINE ✓":"BAIXAR")+'</div></div>';
   }).join("");
 }
-function novaLista(arr){return arr.map(function(o){var c=Object.assign({},o);c.status="pendente";c.instalada="";c.nLaminas="";c.te="";c.ts="";c.reflDef="";c.reflSup="";c.obs="";c.foto1="";c.foto1Gps="";c.foto2="";c.foto2Gps="";return c;});}
+function novaLista(arr){return arr.map(function(o){var c=Object.assign({},o);c.status="pendente";c.instalada="";c.nLaminas="";c.te=emUso(o.termEntrada)?"USO":"";c.ts=emUso(o.termSaida)?"USO":"";c.reflDef="";c.reflSup="";c.obs="";c.foto1="";c.foto1Gps="";c.foto2="";c.foto2Gps="";return c;});}
 async function abrirRodovia(arquivo){
   var trab=DB?await idbGet("trab",arquivo):null;
   if(!trab){
@@ -367,6 +370,11 @@ function abrirDef(id){
     (eixoDifere(it)?'<div class="eixobanner">⚠ Interseção: esta defensa está no eixo <b>'+esc(fmtEixo(it.eixo))+'</b>. O km refere-se a essa rodovia, não à '+esc(normEixo((rodAtual||"").replace(/\s*\(.*\)/,"")))+'.</div>':'');
   // preenche campos
   ["instalada","te","ts"].forEach(function(cp){var map={instalada:"tgInstalada",te:"tgTE",ts:"tgTS"};var v=it[cp]||"";var box=document.getElementById(map[cp]);box.querySelector(".sim").classList.toggle("on",v==="S");box.querySelector(".nao").classList.toggle("on",v==="N");});
+  var teUso=emUso(it.termEntrada), tsUso=emUso(it.termSaida);
+  document.getElementById("tgTE").classList.toggle("esconde",teUso);
+  document.getElementById("tgTEuso").classList.toggle("esconde",!teUso);
+  document.getElementById("tgTS").classList.toggle("esconde",tsUso);
+  document.getElementById("tgTSuso").classList.toggle("esconde",!tsUso);
   document.getElementById("dLaminas").value=it.nLaminas||"";
   document.getElementById("dReflDef").value=it.reflDef||"";
   document.getElementById("dReflSup").value=it.reflSup||"";
@@ -389,7 +397,8 @@ function salvarDef(){
 function limparDef(){
   var it=itens.find(function(x){return x.id===atual;});if(!it)return;
   if(!confirm("Limpar a verificação desta defensa?"))return;
-  ["instalada","te","ts","nLaminas","reflDef","reflSup","obs","foto1","foto1Gps","foto2","foto2Gps"].forEach(function(k){it[k]="";});
+  ["instalada","nLaminas","reflDef","reflSup","obs","foto1","foto1Gps","foto2","foto2Gps"].forEach(function(k){it[k]="";});
+  it.te=emUso(it.termEntrada)?"USO":""; it.ts=emUso(it.termSaida)?"USO":"";
   it.status="pendente"; persist(); defSujo=false; toast("Verificação removida"); irPara("lista");
 }
 function voltarLista(){defSujo=false;irPara("lista");}
@@ -469,7 +478,7 @@ function apagarFotoDef(q){
 }
 /* ====== Exportação ====== */
 var COLS=["Tramo","Km inicial","Km final","Lado","Eixo","Comprimento projeto (m)","Nº lâminas","Comprimento medido (m)","Instalada no local","Terminal entrada OK","Terminal saída OK","Refletivo defensa (qtd)","Refletivo suporte (qtd)","Fotos","Observação"];
-function sn(v){return v==="S"?"Sim":(v==="N"?"Não":"");}
+function sn(v){return v==="S"?"Sim":(v==="N"?"Não":(v==="USO"?"Manutenção (em condição de uso)":""));}
 function copiarVerificacao(){
   var sel=itens.filter(function(it){return it.status==="verificada";});
   if(!sel.length){toast("Nenhuma defensa verificada ainda");return;}
