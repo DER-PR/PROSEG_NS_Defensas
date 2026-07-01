@@ -1,0 +1,15 @@
+{
+  "name": "PROSEG · Defensas Metálicas",
+  "short_name": "Defensas",
+  "description": "Verificação de nota de serviço de defensas metálicas",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1f5673",
+  "theme_color": "#1f5673",
+  "icons": [
+    {"src":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='34' fill='%231f5673'/%3E%3Cpath d='M40 96 Q96 60 152 96' stroke='%23fff' stroke-width='14' fill='none' stroke-linecap='round'/%3E%3Crect x='58' y='96' width='10' height='40' rx='3' fill='%23fff'/%3E%3Crect x='124' y='96' width='10' height='40' rx='3' fill='%23fff'/%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml","purpose":"any"},
+    {"src":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='90' fill='%231f5673'/%3E%3Cpath d='M110 260 Q256 160 402 260' stroke='%23fff' stroke-width='38' fill='none' stroke-linecap='round'/%3E%3Crect x='158' y='260' width='26' height='110' rx='8' fill='%23fff'/%3E%3Crect x='328' y='260' width='26' height='110' rx='8' fill='%23fff'/%3E%3C/svg%3E","sizes":"512x512","type":"image/svg+xml","purpose":"any"}
+  ]
+}
