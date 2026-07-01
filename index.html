@@ -197,6 +197,11 @@
         <button class="btn btn-linha" style="margin-top:8px" onclick="baixarCSVDef()">⬇ Baixar CSV completo (com GPS e data)</button>
         <button class="btn btn-sec" style="margin-top:8px" onclick="compartilharDef()">↗ Enviar arquivo por WhatsApp / e-mail</button>
       </div>
+      <div class="cartao">
+        <h2>Planilha de produção (medição)</h2>
+        <p class="dica">Gera as linhas por serviço/código (defensa, terminais, refletivos) com km e fração separados. Cole na sua planilha a partir da célula <b>B11</b>.</p>
+        <button class="btn btn-primario" onclick="copiarProducao()">📋 Copiar para planilha de produção</button>
+      </div>
     </section>
   </main>
   <nav id="nav" class="esconde">
@@ -503,6 +508,64 @@ function renderResumoExp(){
     '<span>Verificadas: <b>'+c.verif+' / '+c.todos+'</b></span><span>Pendentes: <b>'+c.pend+'</b></span>'+
     '<span>Total lâminas: <b>'+somaLam+'</b></span><span>Comprimento medido: <b>'+somaComp+'</b> m</span>'+
     '</div></div>';
+}
+
+/* ====== Planilha de produção (por serviço/código) ====== */
+var SERVICOS={
+  DEFENSA:{codigo:890921,nome:"Defensa metálica H1AW4 15°"},
+  ABSORVEDOR:{codigo:896385,nome:"Terminal absorvedor de energia"},
+  REFL_DEF:{codigo:895013,nome:"Refletivo para defensas"},
+  REFL_SUP:{codigo:895015,nome:"Refletivo em Película Tipo III para suporte de defensa"},
+  TRANSICAO:{codigo:896375,nome:"Fornec. e inst. de módulo de transição p/def. met., dupla/tripla onda, completo"}
+};
+function splitKm(s){
+  s=(s||"").trim();
+  var p=s.split("+");
+  var km=(p[0]||"").trim();
+  var frac=(p.length>1?p[1]:"").trim();
+  frac=frac.split(",")[0].split(".")[0].trim();
+  return [km,frac];
+}
+function fmtNum(n){var s=(""+n);return s.indexOf(".")>=0?s.replace(".",","):s;}
+function tipoTerminal(v){
+  v=(v||"").toUpperCase();
+  if(v.indexOf("ABSORVEDOR")>=0) return "ABSORVEDOR";
+  if(v.indexOf("TRANSI")>=0) return "TRANSICAO";
+  return "";
+}
+function contagemTerminais(it){
+  var abs=0, tra=0;
+  if(it.te==="S"){var t1=tipoTerminal(it.termEntrada);if(t1==="ABSORVEDOR")abs++;else if(t1==="TRANSICAO")tra++;}
+  if(it.ts==="S"){var t2=tipoTerminal(it.termSaida);if(t2==="ABSORVEDOR")abs++;else if(t2==="TRANSICAO")tra++;}
+  return {absorvedor:abs, transicao:tra};
+}
+function linhasProducao(it){
+  var ki=splitKm(it.kmIni), kf=splitKm(it.kmFim);
+  var data=(it.dataHora||"").split(" ")[0];
+  var rodovia=fmtEixo(it.eixo)||rodAtual||"";
+  var fotos=[it.foto1,it.foto2].filter(Boolean).join(" / ");
+  var base=[data,it.tramo||"",rodovia,ki[0],ki[1],kf[0],kf[1],it.lado||""];
+  var linhas=[];
+  var nl=parseFloat((it.nLaminas||"").replace(",","."));
+  var comp=isNaN(nl)?0:(nl*4);
+  if(comp>0) linhas.push(base.concat([SERVICOS.DEFENSA.codigo,SERVICOS.DEFENSA.nome,fmtNum(comp),fotos,it.obs||""]));
+  var term=contagemTerminais(it);
+  if(term.absorvedor>0) linhas.push(base.concat([SERVICOS.ABSORVEDOR.codigo,SERVICOS.ABSORVEDOR.nome,term.absorvedor,fotos,it.obs||""]));
+  if(term.transicao>0) linhas.push(base.concat([SERVICOS.TRANSICAO.codigo,SERVICOS.TRANSICAO.nome,term.transicao,fotos,it.obs||""]));
+  var rd=parseFloat((it.reflDef||"").toString().replace(",","."));
+  if(!isNaN(rd)&&rd>0) linhas.push(base.concat([SERVICOS.REFL_DEF.codigo,SERVICOS.REFL_DEF.nome,fmtNum(rd),fotos,it.obs||""]));
+  var rs=parseFloat((it.reflSup||"").toString().replace(",","."));
+  if(!isNaN(rs)&&rs>0) linhas.push(base.concat([SERVICOS.REFL_SUP.codigo,SERVICOS.REFL_SUP.nome,fmtNum(rs),fotos,it.obs||""]));
+  return linhas;
+}
+function copiarProducao(){
+  var sel=itens.filter(function(it){return it.status==="verificada";});
+  if(!sel.length){toast("Nenhuma defensa verificada ainda");return;}
+  var linhas=[];
+  sel.forEach(function(it){linhas=linhas.concat(linhasProducao(it));});
+  if(!linhas.length){toast("Nenhum serviço com quantidade a exportar");return;}
+  var txt=linhas.map(function(l){return l.map(function(v){return v==null?"":(""+v);}).join("\t");}).join("\n");
+  copiar(txt, linhas.length+" linha(s) copiadas — cole na célula B11 da planilha");
 }
 
 /* ====== CSV / Compartilhamento ====== */
