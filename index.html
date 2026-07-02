@@ -201,6 +201,7 @@
         <h2>Planilha de produção (medição)</h2>
         <p class="dica">Gera as linhas por serviço/código (defensa, terminais, refletivos) com km e fração separados. Cole na sua planilha a partir da célula <b>B11</b>.</p>
         <button class="btn btn-primario" onclick="copiarProducao()">📋 Copiar para planilha de produção</button>
+        <button class="btn btn-linha" style="margin-top:8px" onclick="baixarCSVProducao()">⬇ Baixar CSV da planilha de produção</button>
       </div>
     </section>
   </main>
@@ -566,6 +567,25 @@ function copiarProducao(){
   if(!linhas.length){toast("Nenhum serviço com quantidade a exportar");return;}
   var txt=linhas.map(function(l){return l.map(function(v){return v==null?"":(""+v);}).join("\t");}).join("\n");
   copiar(txt, linhas.length+" linha(s) copiadas — cole na célula B11 da planilha");
+}
+var COLS_PRODUCAO=["Data","Tramo","Rodovia","Km inicial","Fração inicial","Km final","Fração final","Lado","Código","Serviço","Quantidade","Fotos","Observações"];
+function montaCSVProducao(){
+  var sel=itens.filter(function(it){return it.status==="verificada";});
+  var linhas=[];
+  sel.forEach(function(it){linhas=linhas.concat(linhasProducao(it));});
+  var c=";";
+  var h=COLS_PRODUCAO.join(c);
+  var corpo=linhas.map(function(l){return l.map(campoCSV).join(c);}).join("\r\n");
+  return {texto:"\uFEFF"+h+"\r\n"+corpo, n:linhas.length};
+}
+function nomeArqProducao(){var d=new Date(),z=function(n){return(n<10?"0":"")+n;};return (rodAtual||"defensas").replace(/[^\w-]/g,"_")+"_producao_"+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+".csv";}
+function baixarCSVProducao(){
+  var r=montaCSVProducao();
+  if(!r.n){toast("Nenhum serviço com quantidade a exportar");return;}
+  var blob=new Blob([r.texto],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=nomeArqProducao();document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  toast(r.n+" linha(s) exportada(s)");
 }
 
 /* ====== CSV / Compartilhamento ====== */
