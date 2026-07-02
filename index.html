@@ -192,13 +192,6 @@
         <div id="resumoExp"></div>
       </div>
       <div class="cartao">
-        <h2>Exportar verificação</h2>
-        <p class="dica">Gera a tabela com todas as defensas verificadas (projeto × verificado). Cole na sua planilha de conferência.</p>
-        <button class="btn btn-primario" onclick="copiarVerificacao()">📋 Copiar verificação</button>
-        <button class="btn btn-linha" style="margin-top:8px" onclick="baixarCSVDef()">⬇ Baixar CSV completo (com GPS e data)</button>
-        <button class="btn btn-sec" style="margin-top:8px" onclick="compartilharDef()">↗ Enviar arquivo por WhatsApp / e-mail</button>
-      </div>
-      <div class="cartao">
         <h2>Planilha de produção (medição)</h2>
         <p class="dica">Gera o Excel com as linhas por serviço/código (defensa, terminais, refletivos), km e fração separados — no mesmo formato da sua planilha de medição.</p>
         <button class="btn btn-primario" onclick="enviarProducaoXLSX()">↗ Enviar arquivo por WhatsApp / e-mail</button>
@@ -576,16 +569,24 @@ async function enviarProducaoXLSX(){
   var arrbuf=XLSX.write(wb,{bookType:"xlsx",type:"array"});
   var blob=new Blob([arrbuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   var nome=nomeArqProducaoXlsx();
-  try{
-    var file=new File([blob],nome,{type:blob.type});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
+  var file=null;
+  try{ file=new File([blob],nome,{type:blob.type}); }catch(e){}
+  var podeCompartilhar=file && navigator.canShare && navigator.canShare({files:[file]});
+  if(!navigator.share){
+    toast("Este navegador não permite enviar direto — baixando o arquivo");
+  }else if(!podeCompartilhar){
+    toast("Este iPhone/navegador não aceita enviar arquivo .xlsx direto — baixando o arquivo");
+  }else{
+    try{
       await navigator.share({files:[file],title:"Planilha de produção "+(rodAtual||""),text:"Medição de defensas PROSEG "+(rodAtual||"")});
       return;
+    }catch(e){
+      if(e&&e.name==="AbortError"){return;}
+      toast("Não foi possível enviar ("+(e&&e.name||"erro")+") — baixando o arquivo");
     }
-  }catch(e){}
+  }
   var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url);},1500);
-  toast("Compartilhamento indisponível — arquivo baixado");
 }
 
 /* ====== CSV / Compartilhamento ====== */
