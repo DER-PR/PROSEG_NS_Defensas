@@ -46,10 +46,6 @@
   .lev .det{font-size:13px;color:var(--cinza);margin-top:2px}
   .lev .selo{margin-left:auto;font-size:11px;font-weight:800;padding:5px 9px;border-radius:20px;white-space:nowrap}
   .selo.on{background:var(--azul-cl);color:var(--azul)} .selo.off{background:#fdf2e3;color:#a86b12}
-  .lev.concluida{border-left-color:var(--verde)}
-  .selo-conc{display:inline-block;margin-left:8px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;background:#e4f3ea;color:var(--verde);vertical-align:middle}
-  .btn-conc{border:none;background:none;font-size:20px;line-height:1;padding:4px 6px;cursor:pointer;color:var(--cinza)}
-  .btn-conc.on{color:var(--verde)}
   .dlbar{height:8px;background:var(--cinza-cl);border-radius:6px;overflow:hidden;margin-top:10px}
   .dlbar i{display:block;height:100%;background:var(--azul);width:0;transition:width .2s}
   .item{display:flex;align-items:stretch;background:#fff;border-radius:12px;box-shadow:var(--sombra);margin-bottom:10px;overflow:hidden;cursor:pointer}
@@ -279,18 +275,6 @@ async function baixarTodasH(){
   toast(ok+" de "+manifest.length+" rodovias salvas offline");
   mostraSeletor();
 }
-function getConcluidas(){try{return JSON.parse(localStorage.getItem("proseg_defensas_concluidas")||"[]");}catch(e){return [];}}
-function setConcluidas(arr){try{localStorage.setItem("proseg_defensas_concluidas",JSON.stringify(arr));}catch(e){}}
-function isConcluida(arquivo){return getConcluidas().indexOf(arquivo)>=0;}
-function toggleConcluida(arquivo,ev){
-  if(ev){ev.stopPropagation();}
-  var arr=getConcluidas();
-  var i=arr.indexOf(arquivo);
-  if(i>=0){arr.splice(i,1);toast("Rodovia marcada como em andamento");}
-  else{arr.push(arquivo);toast("Rodovia marcada como concluída ✓");}
-  setConcluidas(arr);
-  mostraSeletor();
-}
 async function mostraSeletor(){
   esconderTudo();document.getElementById("vSel").classList.remove("esconde");
   document.getElementById("nav").classList.add("esconde");
@@ -301,13 +285,10 @@ async function mostraSeletor(){
   var baixados=DB?await idbKeys("trab"):[];
   var alvo=document.getElementById("listaLev");
   if(!manifest.length){alvo.innerHTML='<div class="vazio">Não foi possível carregar a lista. Conecte-se à internet uma vez.</div>';return;}
-  var concluidas=getConcluidas();
   alvo.innerHTML=manifest.map(function(it){
     var on=baixados.indexOf(it.arquivo)>=0;
-    var conc=concluidas.indexOf(it.arquivo)>=0;
-    return '<div class="lev '+(conc?"concluida":"")+'" onclick="abrirRodovia(\''+it.arquivo+'\')">'+
-      '<div><div class="nome">'+esc(it.rodovia)+(conc?' <span class="selo-conc">✓ CONCLUÍDO</span>':'')+'</div><div class="det">'+it.nItens+' defensas</div></div>'+
-      '<button class="btn-conc '+(conc?"on":"")+'" title="'+(conc?"Marcar como em andamento":"Marcar como concluída")+'" onclick="toggleConcluida(\''+it.arquivo+'\',event)">'+(conc?"★":"☆")+'</button>'+
+    return '<div class="lev" onclick="abrirRodovia(\''+it.arquivo+'\')">'+
+      '<div><div class="nome">'+esc(it.rodovia)+'</div><div class="det">'+it.nItens+' defensas</div></div>'+
       '<div class="selo '+(on?"on":"off")+'">'+(on?"OFFLINE ✓":"BAIXAR")+'</div></div>';
   }).join("");
 }
