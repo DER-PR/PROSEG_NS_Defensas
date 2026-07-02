@@ -79,6 +79,7 @@
   .fotos2{display:flex;gap:10px}
   .fotos2>div{flex:1}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -199,9 +200,8 @@
       </div>
       <div class="cartao">
         <h2>Planilha de produção (medição)</h2>
-        <p class="dica">Gera as linhas por serviço/código (defensa, terminais, refletivos) com km e fração separados. Cole na sua planilha a partir da célula <b>B11</b>.</p>
-        <button class="btn btn-primario" onclick="copiarProducao()">📋 Copiar para planilha de produção</button>
-        <button class="btn btn-linha" style="margin-top:8px" onclick="baixarCSVProducao()">⬇ Baixar CSV da planilha de produção</button>
+        <p class="dica">Gera o Excel com as linhas por serviço/código (defensa, terminais, refletivos), km e fração separados — no mesmo formato da sua planilha de medição.</p>
+        <button class="btn btn-primario" onclick="enviarProducaoXLSX()">↗ Enviar arquivo por WhatsApp / e-mail</button>
       </div>
     </section>
   </main>
@@ -559,33 +559,33 @@ function linhasProducao(it){
   if(!isNaN(rs)&&rs>0) linhas.push(base.concat([SERVICOS.REFL_SUP.codigo,SERVICOS.REFL_SUP.nome,fmtNum(rs),fotos,it.obs||""]));
   return linhas;
 }
-function copiarProducao(){
+var HEADER_PRODUCAO=["DATA","TRAMO","RODOVIA","KM INCIAL","FRAÇÃO INICIAL","KM FINAL","FRAÇÃO FINAL","LADO","CÓDIGO","SERVIÇO","QTDE","FOTOS","OBSERVAÇÃO"];
+function nomeArqProducaoXlsx(){var d=new Date(),z=function(n){return(n<10?"0":"")+n;};return (rodAtual||"defensas").replace(/[^\w-]/g,"_")+"_producao_"+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+".xlsx";}
+async function enviarProducaoXLSX(){
   var sel=itens.filter(function(it){return it.status==="verificada";});
   if(!sel.length){toast("Nenhuma defensa verificada ainda");return;}
   var linhas=[];
   sel.forEach(function(it){linhas=linhas.concat(linhasProducao(it));});
   if(!linhas.length){toast("Nenhum serviço com quantidade a exportar");return;}
-  var txt=linhas.map(function(l){return l.map(function(v){return v==null?"":(""+v);}).join("\t");}).join("\n");
-  copiar(txt, linhas.length+" linha(s) copiadas — cole na célula B11 da planilha");
-}
-var COLS_PRODUCAO=["Data","Tramo","Rodovia","Km inicial","Fração inicial","Km final","Fração final","Lado","Código","Serviço","Quantidade","Fotos","Observações"];
-function montaCSVProducao(){
-  var sel=itens.filter(function(it){return it.status==="verificada";});
-  var linhas=[];
-  sel.forEach(function(it){linhas=linhas.concat(linhasProducao(it));});
-  var c=";";
-  var h=COLS_PRODUCAO.join(c);
-  var corpo=linhas.map(function(l){return l.map(campoCSV).join(c);}).join("\r\n");
-  return {texto:"\uFEFF"+h+"\r\n"+corpo, n:linhas.length};
-}
-function nomeArqProducao(){var d=new Date(),z=function(n){return(n<10?"0":"")+n;};return (rodAtual||"defensas").replace(/[^\w-]/g,"_")+"_producao_"+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+".csv";}
-function baixarCSVProducao(){
-  var r=montaCSVProducao();
-  if(!r.n){toast("Nenhum serviço com quantidade a exportar");return;}
-  var blob=new Blob([r.texto],{type:"text/csv;charset=utf-8;"});
-  var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=nomeArqProducao();document.body.appendChild(a);a.click();document.body.removeChild(a);
+  if(typeof XLSX==="undefined"){toast("Sem conexão para gerar o Excel — conecte-se à internet uma vez e tente de novo");return;}
+  var aoa=[HEADER_PRODUCAO].concat(linhas);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:10},{wch:7},{wch:10},{wch:9},{wch:9},{wch:9},{wch:9},{wch:6},{wch:9},{wch:40},{wch:8},{wch:14},{wch:30}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"DEFENSA");
+  var arrbuf=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  var blob=new Blob([arrbuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  var nome=nomeArqProducaoXlsx();
+  try{
+    var file=new File([blob],nome,{type:blob.type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:"Planilha de produção "+(rodAtual||""),text:"Medição de defensas PROSEG "+(rodAtual||"")});
+      return;
+    }
+  }catch(e){}
+  var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url);},1500);
-  toast(r.n+" linha(s) exportada(s)");
+  toast("Compartilhamento indisponível — arquivo baixado");
 }
 
 /* ====== CSV / Compartilhamento ====== */
