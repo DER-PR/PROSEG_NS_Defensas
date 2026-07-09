@@ -510,18 +510,19 @@ function voltarLista(){defSujo=false;irPara("lista");}
 
 /* ====== Fotos georreferenciadas (até 2) ====== */
 function sugereFotoDef(){var n=[];itens.forEach(function(x){[x.foto1,x.foto2].forEach(function(v){var k=parseInt(v,10);if(!isNaN(k))n.push(k);});});return n.length?Math.max.apply(null,n)+1:1;}
+var gpsPromise=null;
+function pedirGPS(){
+  fotoGps=null;
+  if(!navigator.geolocation){ gpsPromise=Promise.resolve(null); return; }
+  gpsPromise=new Promise(function(resolve){
+    navigator.geolocation.getCurrentPosition(function(pos){ fotoGps={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)}; resolve(fotoGps); },function(){ fotoGps=null; resolve(null); },{enableHighAccuracy:true,timeout:15000,maximumAge:8000});
+  });
+}
 function tirarFotoDef(qual){
   var it=itens.find(function(x){return x.id===atual;}); if(!it)return;
-  fotoQual=qual; fotoGps=null;
-  if(!navigator.geolocation){ document.getElementById("dFotoCam").click(); return; }
-  toast("\ud83d\udccd Obtendo GPS\u2026 aguarde");
-  navigator.geolocation.getCurrentPosition(function(pos){
-    fotoGps={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)};
-    toast("\ud83d\udccd GPS OK \u2014 abrindo c\u00e2mera"); document.getElementById("dFotoCam").click();
-  },function(){
-    fotoGps=null;
-    if(confirm("N\u00e3o consegui o GPS agora (sinal fraco?). Tirar a foto mesmo assim, SEM coordenada?")) document.getElementById("dFotoCam").click();
-  },{enableHighAccuracy:true,timeout:15000,maximumAge:8000});
+  fotoQual=qual;
+  pedirGPS();
+  document.getElementById("dFotoCam").click();   // abre a c\u00e2mera no MESMO toque (exig\u00eancia do iOS)
 }
 function processaFotoDef(input){
   var file=input.files&&input.files[0]; if(!file){input.value="";return;}
@@ -530,10 +531,11 @@ function processaFotoDef(input){
   var reader=new FileReader();
   reader.onload=function(e){
     var img=new Image();
-    img.onload=function(){
+    img.onload=async function(){
       var maxE=1600,w=img.width,h=img.height,s=Math.min(1,maxE/Math.max(w,h));
       var cw=Math.round(w*s),ch=Math.round(h*s);
       var cv=document.createElement("canvas");cv.width=cw;cv.height=ch;var ctx=cv.getContext("2d");ctx.drawImage(img,0,0,cw,ch);
+      if(gpsPromise){try{await gpsPromise;}catch(_e){}}   // garante o GPS antes de carimbar
       var g=fotoGps;
       desenhaCarimbo(ctx,cw,ch,{g:g,rod:rodAtual||"",tramo:it.tramo,km:it.kmIni,idx:idx,desc:"Defensa metálica"});
       var full=cv.toDataURL("image/jpeg",0.85);
