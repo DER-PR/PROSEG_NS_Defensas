@@ -513,8 +513,15 @@ function sugereFotoDef(){var n=[];itens.forEach(function(x){[x.foto1,x.foto2].fo
 function tirarFotoDef(qual){
   var it=itens.find(function(x){return x.id===atual;}); if(!it)return;
   fotoQual=qual; fotoGps=null;
-  if(navigator.geolocation){toast("Obtendo GPS...");navigator.geolocation.getCurrentPosition(function(pos){fotoGps={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)};toast("GPS pronto \u2014 tire a foto");},function(){fotoGps=null;},{enableHighAccuracy:true,timeout:15000,maximumAge:0});}
-  document.getElementById("dFotoCam").click();
+  if(!navigator.geolocation){ document.getElementById("dFotoCam").click(); return; }
+  toast("\ud83d\udccd Obtendo GPS\u2026 aguarde");
+  navigator.geolocation.getCurrentPosition(function(pos){
+    fotoGps={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)};
+    toast("\ud83d\udccd GPS OK \u2014 abrindo c\u00e2mera"); document.getElementById("dFotoCam").click();
+  },function(){
+    fotoGps=null;
+    if(confirm("N\u00e3o consegui o GPS agora (sinal fraco?). Tirar a foto mesmo assim, SEM coordenada?")) document.getElementById("dFotoCam").click();
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:8000});
 }
 function processaFotoDef(input){
   var file=input.files&&input.files[0]; if(!file){input.value="";return;}
