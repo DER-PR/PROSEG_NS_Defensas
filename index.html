@@ -205,6 +205,11 @@
         <p class="dica">Gera o Excel com as linhas por serviço/código (defensa, terminais, refletivos), km e fração separados — no mesmo formato da sua planilha de medição.</p>
         <button class="btn btn-primario" onclick="enviarProducaoXLSX()">↗ Enviar arquivo por WhatsApp / e-mail</button>
       </div>
+      <div class="cartao">
+        <h2>Enviar as fotos</h2>
+        <p class="dica">Manda <b>todas as fotos desta rodovia</b> num arquivo <b>.ZIP</b> (georreferenciado, com carimbo). Envie no WhatsApp <b>como Documento</b> para não perder o GPS. Se passar do limite, o app divide em partes automaticamente.</p>
+        <button class="btn btn-primario" onclick="exportarFotos()">📦 Enviar fotos por WhatsApp (ZIP)</button>
+      </div>
     </section>
   </main>
   <nav id="nav" class="esconde">
@@ -226,7 +231,7 @@
 <script>
 /* ====== IndexedDB ====== */
 var DB=null;
-function idbOpen(){return new Promise(function(res){var r=indexedDB.open("proseg-defensas",1);r.onupgradeneeded=function(e){var db=e.target.result;if(!db.objectStoreNames.contains("ref"))db.createObjectStore("ref");if(!db.objectStoreNames.contains("trab"))db.createObjectStore("trab");};r.onsuccess=function(e){res(e.target.result);};r.onerror=function(){res(null);};});}
+function idbOpen(){return new Promise(function(res){var r=indexedDB.open("proseg-defensas",2);r.onupgradeneeded=function(e){var db=e.target.result;if(!db.objectStoreNames.contains("ref"))db.createObjectStore("ref");if(!db.objectStoreNames.contains("trab"))db.createObjectStore("trab");if(!db.objectStoreNames.contains("fotos"))db.createObjectStore("fotos");};r.onsuccess=function(e){res(e.target.result);};r.onerror=function(){res(null);};});}
 function idbGet(store,key){return new Promise(function(res){if(!DB)return res(null);var t=DB.transaction(store,"readonly").objectStore(store).get(key);t.onsuccess=function(){res(t.result||null);};t.onerror=function(){res(null);};});}
 function idbPut(store,key,val){return new Promise(function(res){if(!DB)return res(false);var t=DB.transaction(store,"readwrite").objectStore(store).put(val,key);t.onsuccess=function(){res(true);};t.onerror=function(){res(false);};});}
 function idbKeys(store){return new Promise(function(res){if(!DB)return res([]);var t=DB.transaction(store,"readonly").objectStore(store).getAllKeys();t.onsuccess=function(){res(t.result||[]);};t.onerror=function(){res([]);};});}
@@ -252,7 +257,8 @@ async function statusLev(arquivo){
   var total=(ref&&ref.itens)?ref.itens.length:(trab?trab.length:0);
   var nMed=trab?trab.filter(function(it){return (it.status&&it.status!=="pendente")||it.foto1||it.foto2;}).length:0;
   var bytes=0; try{ bytes=JSON.stringify(ref||"").length+JSON.stringify(trab||"").length; }catch(e){}
-  return {arquivo:arquivo,total:total,nMed:nMed,mb:bytes/1048576};
+  var nFotos=0; try{ var fk=(await idbKeys("fotos")).filter(function(k){return String(k).indexOf(arquivo+"#")===0;}); nFotos=fk.length; for(var j=0;j<fk.length;j++){ var fr=await idbGet("fotos",fk[j]); if(fr&&fr.data) bytes+=fr.data.length; } }catch(e){}
+  return {arquivo:arquivo,total:total,nMed:nMed,nFotos:nFotos,mb:bytes/1048576};
 }
 async function abrirLiberar(){
   var ov=document.getElementById("ovLiberar"), lst=document.getElementById("liberarLista");
@@ -272,11 +278,59 @@ async function abrirLiberar(){
 async function liberarLev(arquivo){
   if(!confirm("ATENÇÃO: liberar vai APAGAR do celular as medições e fotos desta rodovia.\n\nSó faça se você JÁ exportou os dados e ENTREGOU as fotos.\n\nContinuar?")) return;
   await idbDel("ref",arquivo); await idbDel("trab",arquivo);
+  try{ var fk=(await idbKeys("fotos")).filter(function(k){return String(k).indexOf(arquivo+"#")===0;}); for(var i=0;i<fk.length;i++){ await idbDel("fotos",fk[i]); } }catch(e){}
   if(rodAtual===arquivo){ rodAtual=null; itens=[]; }
   toast("Espaço liberado ✓");
   abrirLiberar();
 }
 function fecharLiberar(){ document.getElementById("ovLiberar").style.display="none"; }
+
+/* ====== Exportar FOTOS em ZIP (offline, sem biblioteca) ====== */
+var _crcTab=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function _crc32(b){var c=0xFFFFFFFF;for(var i=0;i<b.length;i++)c=_crcTab[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function _u32(v){return [v&0xFF,(v>>>8)&0xFF,(v>>>16)&0xFF,(v>>>24)&0xFF];}
+function _u16(v){return [v&0xFF,(v>>>8)&0xFF];}
+function dataURLtoBytes(d){var b=atob(String(d).split(",")[1]||"");var a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+function zipStore(files){
+  var enc=new TextEncoder(), chunks=[], central=[], offset=0;
+  files.forEach(function(f){
+    var nb=enc.encode(f.name), crc=_crc32(f.bytes), sz=f.bytes.length;
+    var lh=[].concat(_u32(0x04034b50),_u16(20),_u16(0),_u16(0),_u16(0),_u16(0),_u32(crc),_u32(sz),_u32(sz),_u16(nb.length),_u16(0));
+    chunks.push(new Uint8Array(lh)); chunks.push(nb); chunks.push(f.bytes);
+    var cd=[].concat(_u32(0x02014b50),_u16(20),_u16(20),_u16(0),_u16(0),_u16(0),_u16(0),_u32(crc),_u32(sz),_u32(sz),_u16(nb.length),_u16(0),_u16(0),_u16(0),_u16(0),_u32(0),_u32(offset));
+    central.push(new Uint8Array(cd)); central.push(nb);
+    offset += lh.length + nb.length + sz;
+  });
+  var cSize=0; central.forEach(function(c){cSize+=c.length;});
+  var end=new Uint8Array([].concat(_u32(0x06054b50),_u16(0),_u16(0),_u16(files.length),_u16(files.length),_u32(cSize),_u32(offset),_u16(0)));
+  var all=chunks.concat(central); all.push(end);
+  var total=0; all.forEach(function(a){total+=a.length;});
+  var out=new Uint8Array(total),pos=0; all.forEach(function(a){out.set(a,pos);pos+=a.length;});
+  return out;
+}
+async function exportarFotos(){
+  if(!rodAtual){ toast("Abra uma rodovia primeiro"); return; }
+  var pref=rodAtual+"#";
+  var keys=(DB? await idbKeys("fotos"):[]).filter(function(k){return String(k).indexOf(pref)===0;});
+  if(!keys.length){ toast("Nenhuma foto salva nesta rodovia"); return; }
+  toast("Preparando "+keys.length+" foto(s)…");
+  var arqs=[];
+  for(var i=0;i<keys.length;i++){ var rec=await idbGet("fotos",keys[i]); if(!rec||!rec.data)continue; arqs.push({name:(rec.nome||(String(keys[i]).replace(/[#\/]/g,"_")+".jpg")), bytes:dataURLtoBytes(rec.data)}); }
+  if(!arqs.length){ toast("Fotos indisponíveis"); return; }
+  var LIM=90*1024*1024, lotes=[], cur=[], soma=0;
+  arqs.forEach(function(a){ if(soma+a.bytes.length>LIM && cur.length){ lotes.push(cur); cur=[]; soma=0; } cur.push(a); soma+=a.bytes.length; });
+  if(cur.length) lotes.push(cur);
+  var base=((manifest.find(function(m){return m.arquivo===rodAtual;})||{}).rodovia||"fotos").replace(/[^A-Za-z0-9-]/g,"");
+  for(var j=0;j<lotes.length;j++){
+    var zip=zipStore(lotes[j]);
+    var zn=base+"_fotos"+(lotes.length>1?("_parte"+(j+1)+"de"+lotes.length):"")+".zip";
+    var file=new File([zip],zn,{type:"application/zip"});
+    var enviado=false;
+    try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:zn}); enviado=true; } }catch(e){ enviado=true; }
+    if(!enviado){ var url=URL.createObjectURL(file),a=document.createElement("a");a.href=url;a.download=zn;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1500); }
+  }
+  toast(lotes.length>1?(lotes.length+" arquivos ZIP gerados ✓"):"ZIP das fotos pronto ✓");
+}
 function irPara(v){
   if(vAtual==="def"&&v!=="def"&&defSujo){ if(!confirm("Há uma verificação não salva. Sair sem salvar?"))return; defSujo=false; }
   esconderTudo();
@@ -482,7 +536,8 @@ function processaFotoDef(input){
       it["foto"+qual]=idx; it["foto"+qual+"Thumb"]=tcv.toDataURL("image/jpeg",0.6); it["foto"+qual+"Gps"]=g?(g.lat.toFixed(6)+", "+g.lng.toFixed(6)):"";
       persist(); defSujo=true; mostraPrevDef();
       var nome=(rodAtual||"foto").replace(/[^A-Za-z0-9-]/g,"")+"_T"+(it.tramo||"")+"_"+idx+".jpg";
-      compartilhaFoto(full,nome);
+      if(rodAtual) idbPut("fotos", rodAtual+"#"+idx, {nome:nome,data:full,arquivo:rodAtual,idx:idx,gps:it["foto"+qual+"Gps"]||""});
+      toast("📷 Foto "+idx+" salva no app ✓");
     };
     img.src=e.target.result;
   };
